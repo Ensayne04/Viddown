@@ -8,5 +8,3 @@
   "messagingSenderId": "853114093876",
   "measurementId": ""
 }
-git filter-repo --path firebase-applet-config.json --invert-paths
-git push --force origin main
