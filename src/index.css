@@ -1,19 +1,27 @@
 @import "tailwindcss";
 
 .mesh-bg {
-  background: radial-gradient(circle at 20% 20%, #1e1b4b 0%, transparent 40%),
-    radial-gradient(circle at 80% 80%, #312e81 0%, transparent 40%),
-    radial-gradient(circle at 50% 50%, #1e293b 0%, 100%);
+  background: radial-gradient(circle at 20% 20%, #020617 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, #0f172a 0%, transparent 50%),
+    #000000;
 }
 
 .glass {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .orange-disclaimer {
-  background: rgba(251, 146, 60, 0.15);
-  border: 1px solid rgba(251, 146, 60, 0.3);
+  background: rgba(251, 146, 60, 0.1);
+  border: 1px solid rgba(251, 146, 60, 0.2);
   color: #fdba74;
+  font-size: 0.8rem;
+  transition: all 0.3s ease;
+}
+
+.orange-disclaimer:hover {
+  background: rgba(251, 146, 60, 0.2);
+  transform: scale(1.02);
+  cursor: default;
 }
