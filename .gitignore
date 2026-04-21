@@ -6,3 +6,18 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Firebase and sensitive config files
+firebase-applet-config.json
+*.key
+*.pem
+secrets.json
+config.local.json
+.credentials/
+
+# IDE and OS
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
