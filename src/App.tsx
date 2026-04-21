@@ -8,6 +8,16 @@ import { motion } from "motion/react";
 import { useState, useEffect } from 'react';
 import { auth, googleProvider, facebookProvider, signInWithPopup } from './services/firebase';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { loadStripe } from '@stripe/stripe-js';
+
+const publishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+let stripePromise: any = null;
+
+if (!publishableKey) {
+  console.error("Stripe Publishable Key is missing! Please set VITE_STRIPE_PUBLISHABLE_KEY in AI Studio Secrets.");
+} else {
+  stripePromise = loadStripe(publishableKey as string);
+}
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -29,6 +39,7 @@ export default function App() {
   };
 
   const [url, setUrl] = useState('');
+  const [format, setFormat] = useState('highest');
   const [error, setError] = useState('');
 
   const [downloadId, setDownloadId] = useState<string | null>(null);
@@ -73,7 +84,7 @@ export default function App() {
     const res = await fetch('/api/download/start', { 
       method: 'POST', 
       headers: {'Content-Type': 'application/json'}, 
-      body: JSON.stringify({ url }) 
+      body: JSON.stringify({ url, format }) 
     });
     const { id } = await res.json();
     setDownloadId(id);
@@ -128,14 +139,12 @@ export default function App() {
             <h2 className="text-white text-lg font-bold mb-4">Settings</h2>
             <button 
               onClick={async () => {
-                if (!user) { alert("Please log in first."); return; }
-                const res = await fetch('/api/create-checkout-session', {
-                  method: 'POST',
-                  headers: {'Content-Type': 'application/json'},
-                  body: JSON.stringify({ userId: user.uid })
-                });
+                const res = await fetch('/api/create-checkout-session', { method: 'POST' });
                 const { id } = await res.json();
-                window.location.href = `https://checkout.stripe.com/c/pay/${id}`;
+                const stripe = await stripePromise;
+                if (stripe) {
+                  await (stripe as any).redirectToCheckout({ sessionId: id });
+                }
               }}
               className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl mb-4"
             >
@@ -179,10 +188,14 @@ export default function App() {
               <div>
                 <label className="text-white/60 text-[10px] uppercase tracking-widest font-semibold ml-1 mb-1.5 block">Video Quality</label>
                 <div className="relative">
-                  <select className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-sm text-white w-full appearance-none outline-none focus:border-indigo-400">
-                    <option>Best Quality (Video + Audio)</option>
-                    <option>Medium Quality (720p)</option>
-                    <option>Audio Only (MP3)</option>
+                  <select 
+                    value={format}
+                    onChange={(e) => setFormat(e.target.value)}
+                    className="bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-sm text-white w-full appearance-none outline-none focus:border-indigo-400"
+                  >
+                    <option value="highest">Best Quality (Video + Audio)</option>
+                    <option value="720p">Medium Quality (720p)</option>
+                    <option value="audioonly">Audio Only (MP3)</option>
                   </select>
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
                     <ChevronDown size={16} color="white" />

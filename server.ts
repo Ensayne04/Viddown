@@ -5,7 +5,16 @@ import path from "path";
 import { v4 as uuidv4 } from 'uuid';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2025-02-24.acacia' });
+let stripeClient: Stripe | null = null;
+function getStripe(): Stripe {
+  if (!stripeClient) {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) throw new Error('STRIPE_SECRET_KEY environment variable is required');
+    stripeClient = new Stripe(key);
+  }
+  return stripeClient;
+}
+
 const downloads = new Map();
 
 async function startServer() {
@@ -13,52 +22,17 @@ async function startServer() {
   const PORT = 3000;
   app.use(express.json());
 
-  // Stripe Checkout
-  app.post("/api/create-checkout-session", async (req, res) => {
-    const { userId } = req.body;
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          product_data: { name: 'Remove Ads' },
-          unit_amount: 500, // $5.00
-        },
-        quantity: 1,
-      }],
-      mode: 'payment',
-      success_url: `${process.env.APP_URL}/settings?success=true`,
-      cancel_url: `${process.env.APP_URL}/settings?canceled=true`,
-      client_reference_id: userId,
-    });
-    res.json({ id: session.id });
-  });
-
-  // Stripe Webhook
-  app.post("/api/webhook", express.raw({type: 'application/json'}), async (req, res) => {
-    const sig = req.headers['stripe-signature']!;
-    let event;
-    try {
-      event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET!);
-    } catch (err: any) {
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    if (event.type === 'checkout.session.completed') {
-      const session = event.data.object as any;
-      console.log(`User ${session.client_reference_id} purchased Remove Ads`);
-      // TODO: Firebase Admin update: setUserPro(session.client_reference_id)
-    }
-    res.json({received: true});
-  });
-
   // Start download
   app.post("/api/download/start", async (req, res) => {
-    const { url } = req.body;
+    const { url, format } = req.body;
     if (!url || !ytdl.validateURL(url)) return res.status(400).json({ error: "Invalid URL" });
     
+    let ytdlOptions: any = { filter: 'audioandvideo', quality: 'highest' };
+    if (format === 'audioonly') ytdlOptions = { filter: 'audioonly' };
+    else if (format === '720p') ytdlOptions = { filter: 'audioandvideo' };
+
     const id = uuidv4();
-    const stream = ytdl(url, { filter: 'audioandvideo', quality: 'highest' });
+    const stream = ytdl(url, ytdlOptions);
     
     let downloadInfo = { 
       stream, 
@@ -91,6 +65,42 @@ async function startServer() {
     
     downloads.set(id, downloadInfo);
     res.json({ id });
+  });
+
+  // Stripe Checkout
+  app.post("/api/create-checkout-session", async (req, res) => {
+    try {
+      const session = await getStripe().checkout.sessions.create({
+        payment_method_types: ['card', 'paypal'],
+        line_items: [{ price_data: { currency: 'usd', product_data: { name: 'Remove Ads' }, unit_amount: 499 }, quantity: 1 }],
+        mode: 'payment',
+        success_url: `${req.protocol}://${req.get('host')}/?success=true`,
+        cancel_url: `${req.protocol}://${req.get('host')}/?canceled=true`,
+      });
+      res.json({ id: session.id });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to create checkout session' });
+    }
+  });
+
+app.post("/api/webhook", express.raw({ type: 'application/json' }), async (req, res) => {
+    const sig = req.headers['stripe-signature'] as string;
+    let event;
+
+    try {
+      event = getStripe().webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET!);
+    } catch (err: any) {
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as any;
+      // In a real app, you would identify the user based on metadata passed during session creation
+      // e.g., session.client_reference_id
+      console.log('Payment successful for session:', session.id);
+    }
+
+    res.json({ received: true });
   });
 
   // Get status
