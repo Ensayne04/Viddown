@@ -73,10 +73,9 @@ export default function App() {
   }, [notification]);
 
   const startDownload = async () => {
-    // Basic YouTube URL regex
-    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
-    if (!url || !youtubeRegex.test(url)) {
-      setError('Please enter a valid YouTube URL');
+    // Allows any URL format for external API processing
+    if (!url) {
+      setError('Please enter a valid URL');
       return;
     }
     setError('');
@@ -86,8 +85,12 @@ export default function App() {
       headers: {'Content-Type': 'application/json'}, 
       body: JSON.stringify({ url, format }) 
     });
-    const { id } = await res.json();
-    setDownloadId(id);
+    const data = await res.json();
+    if (data.error) {
+      setError(data.error);
+      return;
+    }
+    setDownloadId(data.id);
     setStatus('downloading');
   };
 
@@ -196,6 +199,8 @@ export default function App() {
                     <option value="highest">Best Quality (Video + Audio)</option>
                     <option value="720p">Medium Quality (720p)</option>
                     <option value="audioonly">Audio Only (MP3)</option>
+                    <option value="mp4">MP4 Format</option>
+                    <option value="webm">WebM Format</option>
                   </select>
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
                     <ChevronDown size={16} color="white" />

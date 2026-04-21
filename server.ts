@@ -25,45 +25,18 @@ async function startServer() {
   // Start download
   app.post("/api/download/start", async (req, res) => {
     const { url, format } = req.body;
-    if (!url || !ytdl.validateURL(url)) return res.status(400).json({ error: "Invalid URL" });
-    
-    let ytdlOptions: any = { filter: 'audioandvideo', quality: 'highest' };
-    if (format === 'audioonly') ytdlOptions = { filter: 'audioonly' };
-    else if (format === '720p') ytdlOptions = { filter: 'audioandvideo' };
+    if (!url) return res.status(400).json({ error: "URL is required" });
 
+    // TODO: Implement your chosen Video API call here
+    // Example: const downloadUrl = await callExternalVideoAPI(url, format, process.env.EXTERNAL_API_KEY);
+    
+    // For now, this is a placeholder. You need to integrate the specific API.
+    console.log(`Processing ${url} with format ${format}`);
+    
     const id = uuidv4();
-    const stream = ytdl(url, ytdlOptions);
+    // Simulate API response
+    downloads.set(id, { status: 'completed', totalBytes: 100, bytesDownloaded: 100, speed: 0 });
     
-    let downloadInfo = { 
-      stream, 
-      status: 'downloading',
-      bytesDownloaded: 0,
-      totalBytes: 0,
-      speed: 0,
-      lastBytes: 0,
-      lastTime: Date.now()
-    };
-    
-    stream.on('progress', (chunk, downloaded, total) => {
-      downloadInfo.bytesDownloaded = downloaded;
-      downloadInfo.totalBytes = total;
-      const now = Date.now();
-      const duration = (now - downloadInfo.lastTime) / 1000;
-      if (duration > 1) {
-        downloadInfo.speed = (downloaded - downloadInfo.lastBytes) / duration;
-        downloadInfo.lastBytes = downloaded;
-        downloadInfo.lastTime = now;
-      }
-    });
-
-    stream.on('end', () => {
-      downloadInfo.status = 'completed';
-    });
-    stream.on('error', () => {
-      downloadInfo.status = 'failed';
-    });
-    
-    downloads.set(id, downloadInfo);
     res.json({ id });
   });
 
