@@ -11,6 +11,7 @@ import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -35,6 +36,8 @@ export default function App() {
   const [progress, setProgress] = useState(0);
   const [speed, setSpeed] = useState(0);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+  const [showAdModal, setShowAdModal] = useState(false);
+  const [purchasedRemoveAds, setPurchasedRemoveAds] = useState(false);
 
   useEffect(() => {
     if (!downloadId || status === 'completed' || status === 'failed') return;
@@ -45,7 +48,10 @@ export default function App() {
       setStatus(data.status);
       setProgress(data.progress);
       setSpeed(data.speed);
-      if (data.status === 'completed') setNotification({message: 'Download completed!', type: 'success'});
+      if (data.status === 'completed') {
+        setNotification({message: 'Download completed!', type: 'success'});
+        if (!purchasedRemoveAds) setShowAdModal(true);
+      }
       else if (data.status === 'failed') setNotification({message: 'Download failed!', type: 'error'});
     }, 1000);
     return () => clearInterval(interval);
@@ -83,6 +89,15 @@ export default function App() {
 
   return (
     <div className="mesh-bg min-h-screen flex items-center justify-center p-4">
+      {showAdModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4">
+          <div className="bg-white p-8 rounded-2xl max-w-sm w-full text-center shadow-2xl">
+            <h2 className="text-xl font-bold mb-4 text-gray-900">Advertisement</h2>
+            <p className="mb-6 text-gray-600">Consider supporting our developer by viewing this ad.</p>
+            <button onClick={() => setShowAdModal(false)} className="bg-indigo-600 text-white py-2 px-6 rounded-xl hover:bg-indigo-700 transition">Close Ad</button>
+          </div>
+        </div>
+      )}
       {notification && (
         <div className={`fixed top-4 right-4 p-4 rounded-xl text-white font-bold z-50 ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
           {notification.message}
@@ -91,19 +106,44 @@ export default function App() {
       <div className="w-[420px] h-[700px] glass rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col p-6">
         <div className="flex justify-between items-center mb-6">
           <div className="text-white font-bold text-xl tracking-tight">VideoDownloader</div>
-          {user ? (
-            <button onClick={() => signOut(auth)} className="text-white/60 hover:text-white">
-              <LogOut size={20} />
+          <div className="flex gap-2 items-center">
+            <button onClick={() => setIsSettingsOpen(!isSettingsOpen)} className="text-white/60 hover:text-white text-xs">
+              Settings
             </button>
-          ) : (
-            <div className="flex gap-2">
-              <button onClick={() => handleLogin(googleProvider)} className="text-white/60 hover:text-white text-xs">Google</button>
-              <button onClick={() => handleLogin(facebookProvider)} className="text-white/60 hover:text-white text-xs">Facebook</button>
-            </div>
-          )}
+            {user ? (
+              <button onClick={() => signOut(auth)} className="text-white/60 hover:text-white">
+                <LogOut size={20} />
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <button onClick={() => handleLogin(googleProvider)} className="text-white/60 hover:text-white text-xs">Google</button>
+                <button onClick={() => handleLogin(facebookProvider)} className="text-white/60 hover:text-white text-xs">Facebook</button>
+              </div>
+            )}
+          </div>
         </div>
         
-        {user ? (
+        {isSettingsOpen ? (
+          <div className="flex-1 flex flex-col p-4">
+            <h2 className="text-white text-lg font-bold mb-4">Settings</h2>
+            <button 
+              onClick={async () => {
+                if (!user) { alert("Please log in first."); return; }
+                const res = await fetch('/api/create-checkout-session', {
+                  method: 'POST',
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({ userId: user.uid })
+                });
+                const { id } = await res.json();
+                window.location.href = `https://checkout.stripe.com/c/pay/${id}`;
+              }}
+              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl mb-4"
+            >
+              Remove Ads
+            </button>
+            <button onClick={() => setIsSettingsOpen(false)} className="text-white/60 hover:text-white text-sm">Back</button>
+          </div>
+        ) : user ? (
           <div className="flex flex-col flex-1 min-h-0">
             <div className="orange-disclaimer rounded-2xl p-4 leading-relaxed mb-6">
               <span className="font-bold uppercase tracking-wider block mb-1">Legal Disclaimer</span>

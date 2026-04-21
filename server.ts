@@ -3,13 +3,54 @@ import { createServer as createViteServer } from "vite";
 import ytdl from "ytdl-core";
 import path from "path";
 import { v4 as uuidv4 } from 'uuid';
+import Stripe from 'stripe';
 
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2025-02-24.acacia' });
 const downloads = new Map();
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
   app.use(express.json());
+
+  // Stripe Checkout
+  app.post("/api/create-checkout-session", async (req, res) => {
+    const { userId } = req.body;
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [{
+        price_data: {
+          currency: 'usd',
+          product_data: { name: 'Remove Ads' },
+          unit_amount: 500, // $5.00
+        },
+        quantity: 1,
+      }],
+      mode: 'payment',
+      success_url: `${process.env.APP_URL}/settings?success=true`,
+      cancel_url: `${process.env.APP_URL}/settings?canceled=true`,
+      client_reference_id: userId,
+    });
+    res.json({ id: session.id });
+  });
+
+  // Stripe Webhook
+  app.post("/api/webhook", express.raw({type: 'application/json'}), async (req, res) => {
+    const sig = req.headers['stripe-signature']!;
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET!);
+    } catch (err: any) {
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as any;
+      console.log(`User ${session.client_reference_id} purchased Remove Ads`);
+      // TODO: Firebase Admin update: setUserPro(session.client_reference_id)
+    }
+    res.json({received: true});
+  });
 
   // Start download
   app.post("/api/download/start", async (req, res) => {
